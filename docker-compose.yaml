@@ -1,0 +1,79 @@
+# This is Docker Compose configuration used to
+# test the data pipeline and simulate the real
+# environment.
+
+services:
+  postgres-raw:
+    image: "postgres:latest"
+    environment:
+      - "POSTGRES_DB=taxi"
+      - "POSTGRES_USER=postgres"
+      - "POSTGRES_PASSWORD=postgres"
+    volumes:
+      - "raw-db:/var/lib/postgresql"
+    ports:
+      - "127.0.0.1:9000:5432"
+    networks:
+      - raw-db
+
+  postgres-analytics:
+    image: "postgres:latest"
+    environment:
+      - "POSTGRES_DB=taxi"
+      - "POSTGRES_USER=postgres"
+      - "POSTGRES_PASSWORD=postgres"
+    volumes:
+      - "analytics-db:/var/lib/postgresql"
+    ports:
+      - "127.0.0.1:9001:5432"
+    networks:
+      - analytics-db
+  
+  etl:
+    build:
+      context: "./etl"
+      target: "development"
+    environment:
+      - "APP_RAW_DB_HOST=postgres-raw"
+      - "APP_RAW_DB_PORT=5432"
+      - "APP_RAW_DB=taxi"
+      - "APP_RAW_DB_USER=postgres"
+      - "APP_RAW_DB_PASSWORD=postgres"
+      - "APP_ANALYTICS_DB_HOST=postgres-analytics"
+      - "APP_ANALYTICS_DB_PORT=5432"
+      - "APP_ANALYTICS_DB=taxi"
+      - "APP_ANALYTICS_DB_USER=postgres"
+      - "APP_ANALYTICS_DB_PASSWORD=postgres"
+    ports:
+      - "127.0.0.1:9002:80"
+    networks:
+      - raw-db
+      - analytics-db
+  
+  loader:
+    build:
+      context: "./loader"
+      target: "development"
+    environment:
+      - "APP_HOST=0.0.0.0"
+      - "APP_PORT=80"
+      - "APP_POSTGRES__HOST=postgres-raw"
+      - "APP_POSTGRES__PORT=5432"
+      - "APP_POSTGRES__DB=taxi"
+      - "APP_POSTGRES__USER=postgres"
+      - "APP_POSTGRES__PASSWORD=postgres"
+      - "APP_LOADER__CSV_PATH=/opt/app/data/taxi.csv"
+    volumes:
+      - "./data/taxi.csv:/opt/app/data/taxi.csv:ro"
+    ports:
+      - "127.0.0.1:9003:80"
+    networks:
+      - raw-db
+
+networks:
+  raw-db: {}
+  analytics-db: {}
+
+volumes:
+  raw-db: {}
+  analytics-db: {}

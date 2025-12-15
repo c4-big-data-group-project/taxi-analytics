@@ -1,6 +1,6 @@
 import csv
 import itertools
-from typing import Any, Iterable
+from typing import Any, Iterable, TypeVar
 from datetime import datetime
 
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -13,8 +13,12 @@ from sqlalchemy import (
     Numeric,
     TIMESTAMP,
     Boolean,
+    ForeignKey,
 )
 from sqlalchemy.dialects.postgresql import insert
+
+
+T = TypeVar("T")
 
 
 class Loader:
@@ -80,13 +84,15 @@ class Loader:
         self.rate_codes_table = Table(
             "rate_codes",
             self.metadata,
-            Column("rate_code_id", Integer),
+            Column("rate_code_id", Integer, primary_key=True),
             Column("rate_code_description", String),
         )
         self.trips_table = Table(
             "trips",
             self.metadata,
-            Column("tpep_vendor_id", Integer),
+            Column(
+                "tpep_vendor_id", Integer, ForeignKey("tpep_vendors.tpep_vendor_id")
+            ),
             Column("tpep_pickup_datetime", TIMESTAMP(timezone=True), primary_key=True),
             Column("tpep_dropoff_datetime", TIMESTAMP(timezone=True), primary_key=True),
             Column("passenger_count", Integer),
@@ -95,9 +101,9 @@ class Loader:
             Column("pickup_latitude", Numeric(8, 6)),
             Column("dropoff_longitude", Numeric(9, 6)),
             Column("dropoff_latitude", Numeric(8, 6)),
-            Column("rate_code_id", Integer),
+            Column("rate_code_id", Integer, ForeignKey("rate_codes.rate_code_id")),
             Column("store_and_forward_flag", Boolean),
-            Column("payment_type", Integer),
+            Column("payment_type", Integer, ForeignKey("payment_types.payment_type")),
             Column("extra_charge", Numeric(2, 1)),
             Column("mta_tax", Numeric(2, 1)),
             Column("improvement_surcharge", Numeric(2, 1)),
@@ -143,18 +149,32 @@ class Loader:
             await c.commit()
 
     async def load_csv(self, start: int = 0, stop: int = 100) -> int:
-        records: list[dict[str, Any]] = []
         with open(self.csv_path, "r") as file:
             reader = csv.DictReader(file)
-            records = self._csv_to_db_columns(itertools.islice(reader, start, stop))
+            records = itertools.islice(reader, start, stop)
+            count = 0
+            for batch in self._batched(records, 1000):
+                async with self.engine.connect() as c:
+                    c = await c.execution_options(preserve_rowcount=True)
+                    mapped_batch = self._csv_to_db_columns(batch)
+                    res = await c.execute(
+                        insert(self.trips_table)
+                        .values(mapped_batch)
+                        .on_conflict_do_nothing()
+                    )
+                    await c.commit()
+                    count += res.rowcount
+            return count
 
-        async with self.engine.begin() as c:
-            c = await c.execution_options(preserve_rowcount=True)
-            res = await c.execute(
-                insert(self.trips_table).values(records).on_conflict_do_nothing()
-            )
-            await c.commit()
-            return res.rowcount
+    def _batched(self, iterable: Iterable[T], size: int) -> Iterable[list[T]]:
+        if size <= 0:
+            raise ValueError("Batch size must be positive")
+        it = iter(iterable)
+        while True:
+            batch = list(itertools.islice(it, size))
+            if not batch:
+                break
+            yield batch
 
     def _csv_to_db_columns(
         self, rows: Iterable[dict[str, Any]]

@@ -80,6 +80,16 @@ services:
       - "127.0.0.1:9003:80"
     networks:
       - "raw-db"
+  
+  grafana:
+    image: "grafana/grafana"
+    volumes:
+      - "grafana:/var/lib/grafana"
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks:
+      - "analytics-db"
+      - "raw-db"
 
 networks:
   raw-db: {}
@@ -88,3 +98,4 @@ networks:
 volumes:
   raw-db: {}
   analytics-db: {}
+  grafana: {}

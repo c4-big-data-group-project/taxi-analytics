@@ -1,0 +1,17 @@
+name: etl
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - geopandas
+  - pandas
+  - shapely
+  - pyproj
+  - gdal
+  - pip
+  - pip:
+      - fastapi
+      - sqlalchemy
+      - psycopg2-binary
+      - uvicorn
+      - pydantic-settings

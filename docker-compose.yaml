@@ -14,7 +14,7 @@ services:
     ports:
       - "127.0.0.1:9000:5432"
     networks:
-      - raw-db
+      - "raw-db"
 
   postgres-analytics:
     image: "postgres:latest"
@@ -27,28 +27,39 @@ services:
     ports:
       - "127.0.0.1:9001:5432"
     networks:
-      - analytics-db
+      - "analytics-db"
   
   etl:
     build:
       context: "./etl"
       target: "development"
     environment:
-      - "APP_RAW_DB_HOST=postgres-raw"
-      - "APP_RAW_DB_PORT=5432"
-      - "APP_RAW_DB=taxi"
-      - "APP_RAW_DB_USER=postgres"
-      - "APP_RAW_DB_PASSWORD=postgres"
-      - "APP_ANALYTICS_DB_HOST=postgres-analytics"
-      - "APP_ANALYTICS_DB_PORT=5432"
-      - "APP_ANALYTICS_DB=taxi"
-      - "APP_ANALYTICS_DB_USER=postgres"
-      - "APP_ANALYTICS_DB_PASSWORD=postgres"
+      - "APP_HOST=0.0.0.0"
+      - "APP_PORT=80"
+      - "APP_RAW_DB__HOST=postgres-raw"
+      - "APP_RAW_DB__PORT=5432"
+      - "APP_RAW_DB__DB=taxi"
+      - "APP_RAW_DB__USER=postgres"
+      - "APP_RAW_DB__PASSWORD=postgres"
+      - "APP_ANALYTICS_DB__HOST=postgres-analytics"
+      - "APP_ANALYTICS_DB__PORT=5432"
+      - "APP_ANALYTICS_DB__DB=taxi"
+      - "APP_ANALYTICS_DB__USER=postgres"
+      - "APP_ANALYTICS_DB__PASSWORD=postgres"
+      - "APP_PIPELINE__TAXI_ZONES_FILE=/opt/app/data/taxi_zones.shp"
+    volumes:
+      - "./data/taxi_zones.shp:/opt/app/data/taxi_zones.shp:ro"
+      - "./data/taxi_zones.shx:/opt/app/data/taxi_zones.shx:ro"
+      - "./data/taxi_zones.sbx:/opt/app/data/taxi_zones.sbx:ro"
+      - "./data/taxi_zones.dbf:/opt/app/data/taxi_zones.dbf:ro"
+      - "./data/taxi_zones.prj:/opt/app/data/taxi_zones.prj:ro"
+      - "./data/taxi_zones.sbn:/opt/app/data/taxi_zones.sbn:ro"
+      - "./data/taxi_zones.shp.xml:/opt/app/data/taxi_zones.shp.xml:ro"
     ports:
       - "127.0.0.1:9002:80"
     networks:
-      - raw-db
-      - analytics-db
+      - "raw-db"
+      - "analytics-db"
   
   loader:
     build:
@@ -68,7 +79,7 @@ services:
     ports:
       - "127.0.0.1:9003:80"
     networks:
-      - raw-db
+      - "raw-db"
 
 networks:
   raw-db: {}

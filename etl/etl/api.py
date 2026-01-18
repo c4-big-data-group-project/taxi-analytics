@@ -26,12 +26,8 @@ class API:
             "/pipe",
             summary="Processes raw data from raw db and save the results in analytics db",
         )
-        async def pipe(since: datetime):  # type: ignore
-            self.pipeline.pipe(since)
-            return PlainTextResponse(
-                status_code=status.HTTP_200_OK,
-                content="done",
-            )
+        async def pipe(since: datetime) -> datetime:  # type: ignore
+            return self.pipeline.pipe(since)
 
         @app.post(
             "/init-dbs", summary="Initialize databases on both raw and analytics dbs"

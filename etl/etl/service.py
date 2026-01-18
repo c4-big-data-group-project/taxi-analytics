@@ -9,7 +9,7 @@ from sqlalchemy import MetaData, create_engine, text
 from sqlalchemy.dialects.postgresql import insert
 
 from etl.db import AnalyticsSchema, RawSchema, StagingSchema
-from etl.constants import MILES_TO_METERS, CHUNK_SIZE, MAX_CHUNKS
+from etl.constants import MILES_TO_METERS, CHUNK_SIZE, MAX_CHUNKS, MAX_TRIPS_PER_REQUEST
 
 
 class ETLPipeline:
@@ -42,6 +42,8 @@ class ETLPipeline:
             JOIN payment_types ON payment_types.payment_type = trips.payment_type
             JOIN tpep_vendors ON tpep_vendors.tpep_vendor_id = trips.tpep_vendor_id
             WHERE tpep_pickup_datetime >= '{since.isoformat()}'
+            ORDER BY tpep_pickup_datetime ASC
+            LIMIT {MAX_TRIPS_PER_REQUEST}
             """,
             self.raw_db_engine,
         )
@@ -293,7 +295,7 @@ class ETLPipeline:
         data = [dict(zip(keys, row)) for row in data_iter]
         conn.execute(insert(table.table).values(data).on_conflict_do_nothing())
 
-    def pipe(self, since: datetime):
+    def pipe(self, since: datetime) -> datetime:
         # Load trips data from raw database.
         trips = self.load_raw_trips(since)
 
@@ -305,6 +307,7 @@ class ETLPipeline:
         # the analytics database. But first, transform it to fit
         # the schema.
         trips = self.prepare_for_staging(trips)
+        max_datetime = since
         for trips_chunk in chunker(trips, CHUNK_SIZE):
             with self.analytics_db_engine.begin() as c:
                 c.execute(text("DELETE FROM staging_trips"))
@@ -324,3 +327,7 @@ class ETLPipeline:
             self.update_payment_type_dim(trips_chunk)
             self.update_location_dim(trips_chunk)
             self.update_trip_fact(trips_chunk)
+
+            max_datetime = trips_chunk["pickup_datetime"].max()
+
+        return max_datetime
